@@ -121,6 +121,7 @@ export const searchProducts = async (req, res, next) => {
     if (q.trim()) {
       filter.productName = { $regex: q.trim(), $options: 'i' };
     }
+    console.log("Searched Product");
     
     const total = await Product.countDocuments(filter);
     const products = await Product.find(filter)
@@ -149,7 +150,8 @@ export const getProducts = async (req, res, next) => {
     if (category) filter.category = category;
     if (brand) filter.brand = brand;
     if (application) filter.application = application;
-    
+        console.log("Get Product");
+
     // Updated to use dual-unit stock check
     if (inStockOnly === 'true') {
       filter.$expr = {
@@ -185,7 +187,8 @@ export const getProduct = async (req, res, next) => {
     if (!product || !product.isActive) {
       return res.status(404).json({ ok: false, message: 'Product not found' });
     }
-    
+        console.log("Get Product");
+
     // Add calculated fields
     let available;
     try {
@@ -216,6 +219,7 @@ export const updateProduct = async (req, res, next) => {
     if (!product) {
       return res.status(404).json({ ok: false, message: 'Product not found' });
     }
+    console.log("Update Product");
 
     // Track changes for history
     const changes = [];
@@ -306,6 +310,7 @@ export const deleteProduct = async (req, res, next) => {
     next(err);
   }
 };
+    console.log("Delete Product");
 
 // SCENARIO 1: Add Stock - New delivery from supplier
 export const addStock = async (req, res, next) => {
@@ -313,7 +318,8 @@ export const addStock = async (req, res, next) => {
     const { boxes = 0, pieces = 0, notes } = req.body;
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ ok: false, message: 'Product not found' });
-    
+        console.log("Add Product");
+
     // Normalize pieces
     const normalized = normalizePieces(pieces, product.piecesPerBox);
     const addBoxes = boxes + normalized.boxes;
@@ -360,7 +366,8 @@ export const reduceStock = async (req, res, next) => {
     const { boxes = 0, pieces = 0, notes } = req.body;
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ ok: false, message: 'Product not found' });
-    
+        console.log("Reduce Product");
+
     // Normalize pieces
     const normalized = normalizePieces(pieces, product.piecesPerBox);
     const saleBoxes = boxes + normalized.boxes;
@@ -546,6 +553,7 @@ export const customerDamageExchange = async (req, res, next) => {
     const { damageBoxes = 0, damagePieces = 0, newBoxes = 0, newPieces = 0, notes } = req.body;
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ ok: false, message: 'Product not found' });
+    console.log("Damage Product");
     
     // Normalize damage
     const damagNorm = normalizePieces(damagePieces, product.piecesPerBox);
@@ -645,6 +653,8 @@ export const getProductHistory = async (req, res, next) => {
     next(err);
   }
 };
+    console.log("Histroy Product");
+
 
 // Get damaged inventory for a product
 export const getProductDamaged = async (req, res, next) => {
@@ -675,6 +685,8 @@ export const getAllDamaged = async (req, res, next) => {
     if (damageType) filter.damageType = damageType;
     if (status) filter.status = status;
     
+        console.log("Damage Product List");
+
     const damaged = await DamagedInventory.find(filter)
       .populate('productId', 'productName category')
       .sort({ date: -1 })
@@ -701,11 +713,15 @@ export const updateDamagedStatus = async (req, res, next) => {
   }
 };
 
+    console.log("Damage Product Update");
+
+
 // Update low stock threshold for a single product
 export const updateLowStockThreshold = async (req, res, next) => {
   try {
     const { lowStockThreshold } = req.body;
-    
+        console.log("Low Stock Product");
+
     if (lowStockThreshold === undefined || lowStockThreshold === null) {
       return res.status(400).json({ ok: false, message: 'Low stock threshold is required' });
     }
@@ -738,7 +754,8 @@ export const updateLowStockThreshold = async (req, res, next) => {
 export const bulkUpdateLowStockThreshold = async (req, res, next) => {
   try {
     const { productIds, lowStockThreshold } = req.body;
-    
+        console.log("Low Stock  Product Bulk Update");
+
     if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
       return res.status(400).json({ ok: false, message: 'Product IDs array is required' });
     }

@@ -47,6 +47,7 @@ export const recordDamage = async (req, res) => {
       damageReason,
       description // User-provided notes
     } = req.body;
+        console.log(" Recorded Damage  ")
 
     // Validation
     if (!damageType || !productId || !damagedQuantity) {

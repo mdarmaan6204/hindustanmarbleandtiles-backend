@@ -1,9 +1,9 @@
-import Invoice from '../models/Invoice.js';
-import Customer from '../models/Customer.js';
-import Product from '../models/Product.js';
-import StockHistory from '../models/StockHistory.js';
-import Payment from '../models/Payment.js';
-import { toTotalPieces, normalizePieces } from '../utils/inventory.js';
+import Invoice from "../models/Invoice.js";
+import Customer from "../models/Customer.js";
+import Product from "../models/Product.js";
+import StockHistory from "../models/StockHistory.js";
+import Payment from "../models/Payment.js";
+import { toTotalPieces, normalizePieces } from "../utils/inventory.js";
 
 /**
  * Invoice Controller
@@ -13,11 +13,11 @@ import { toTotalPieces, normalizePieces } from '../utils/inventory.js';
 // Helper function to calculate payment status
 const calculatePaymentStatus = (totalPaid, finalAmount) => {
   if (totalPaid >= finalAmount) {
-    return 'PAID';
+    return "PAID";
   } else if (totalPaid > 0) {
-    return 'PARTIAL';
+    return "PARTIAL";
   } else {
-    return 'PENDING';
+    return "PENDING";
   }
 };
 
@@ -41,14 +41,14 @@ export const createInvoice = async (req, res) => {
       finalAmount,
       payment,
       notes,
-      customInvoiceNumber
+      customInvoiceNumber,
     } = req.body;
 
     // Validation
     if (!customerId || !items || items.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Customer and items are required'
+        message: "Customer and items are required",
       });
     }
 
@@ -57,7 +57,7 @@ export const createInvoice = async (req, res) => {
     if (!customer) {
       return res.status(404).json({
         success: false,
-        message: 'Customer not found'
+        message: "Customer not found",
       });
     }
 
@@ -66,13 +66,17 @@ export const createInvoice = async (req, res) => {
     for (const item of items) {
       // Skip custom products (products not in database)
       if (!item.productId || item.isCustom) {
-        console.log(`Skipping stock update for custom product: ${item.productName}`);
+        console.log(
+          `Skipping stock update for custom product: ${item.productName}`
+        );
         continue;
       }
 
       const product = await Product.findById(item.productId);
       if (!product) {
-        console.warn(`Product not found in database: ${item.productName} (${item.productId})`);
+        console.warn(
+          `Product not found in database: ${item.productName} (${item.productId})`
+        );
         continue; // Skip instead of blocking invoice creation
       }
 
@@ -92,27 +96,29 @@ export const createInvoice = async (req, res) => {
 
       // Warn if insufficient stock (but don't block)
       if (requestedPieces > availablePieces) {
-        console.warn(`Warning: Insufficient stock for ${product.productName}. Requested: ${requestedPieces}, Available: ${availablePieces}`);
+        console.warn(
+          `Warning: Insufficient stock for ${product.productName}. Requested: ${requestedPieces}, Available: ${availablePieces}`
+        );
       }
 
       stockUpdates.push({
         product,
         requestedPieces,
-        quantity: item.quantity
+        quantity: item.quantity,
       });
     }
 
     // Create invoice
     const invoiceData = {
-      invoiceType: invoiceType || 'NON_GST',
+      invoiceType: invoiceType || "NON_GST",
       invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
-      salesChannel: salesChannel || 'OFFLINE',
+      salesChannel: salesChannel || "OFFLINE",
       customerId,
       customerDetails: {
         name: customerDetails.name || customer.name,
         phone: customerDetails.phone || customer.phone,
-        address: customerDetails.address || customer.address || '',
-        gstNumber: customerDetails.gstNumber || customer.gstNumber || ''
+        address: customerDetails.address || customer.address || "",
+        gstNumber: customerDetails.gstNumber || customer.gstNumber || "",
       },
       items,
       subtotal,
@@ -126,7 +132,10 @@ export const createInvoice = async (req, res) => {
       // Calculate invoiceValue based on invoice type
       // For GST: invoiceValue = totalBeforeDiscount
       // For NON_GST: invoiceValue = subtotal
-      invoiceValue: (invoiceType === 'GST') ? ((subtotal || 0) + (totalTax || 0)) : (subtotal || 0),
+      invoiceValue:
+        invoiceType === "GST"
+          ? (subtotal || 0) + (totalTax || 0)
+          : subtotal || 0,
       totalAmount,
       roundOffAmount: roundOffAmount || 0,
       finalAmount,
@@ -134,15 +143,17 @@ export const createInvoice = async (req, res) => {
         status: calculatePaymentStatus(payment?.totalPaid || 0, finalAmount),
         totalPaid: payment?.totalPaid || 0,
         pendingAmount: finalAmount - (payment?.totalPaid || 0), // Calculate pending as finalAmount - totalPaid
-        nextDueDate: payment?.nextDueDate || null
+        nextDueDate: payment?.nextDueDate || null,
       },
-      notes: notes || ''
+      notes: notes || "",
     };
 
     // Add custom invoice number if provided
     if (customInvoiceNumber && customInvoiceNumber.trim()) {
       invoiceData.invoiceNumber = customInvoiceNumber.trim();
     }
+
+    console.log(" Invoice Creation ");
 
     const invoice = new Invoice(invoiceData);
 
@@ -165,7 +176,7 @@ export const createInvoice = async (req, res) => {
       // Update product sales (not stock!)
       product.sales = {
         boxes: newSales.boxes,
-        pieces: newSales.pieces
+        pieces: newSales.pieces,
       };
       await product.save();
 
@@ -185,47 +196,51 @@ export const createInvoice = async (req, res) => {
         product.returns?.pieces || 0,
         product.piecesPerBox
       );
-      const availablePieces = stockPieces - newSalesPieces - damagePieces + returnsPieces;
-      const availableStock = normalizePieces(Math.max(0, availablePieces), product.piecesPerBox);
+      const availablePieces =
+        stockPieces - newSalesPieces - damagePieces + returnsPieces;
+      const availableStock = normalizePieces(
+        Math.max(0, availablePieces),
+        product.piecesPerBox
+      );
 
       // Create stock history entry
       const stockHistory = new StockHistory({
         productId: product._id,
-        action: 'SALE',
+        action: "SALE",
         change: {
           boxes: quantity.boxes,
-          pieces: quantity.pieces
+          pieces: quantity.pieces,
         },
         quantity: {
           boxes: availableStock.boxes,
-          pieces: availableStock.pieces
+          pieces: availableStock.pieces,
         },
         notes: `Sale - Invoice: ${invoice.invoiceNumber}`,
         invoiceId: invoice._id,
-        customerId: customer._id
+        customerId: customer._id,
       });
       await stockHistory.save();
     }
 
     // Update customer statistics
     customer.totalPurchaseAmount += finalAmount;
-    customer.totalPaidAmount += (payment?.totalPaid || 0);
-    customer.outstandingBalance += (payment?.pendingAmount || finalAmount);
+    customer.totalPaidAmount += payment?.totalPaid || 0;
+    customer.outstandingBalance += payment?.pendingAmount || finalAmount;
     customer.totalInvoices += 1;
     customer.lastPurchaseDate = new Date();
     await customer.save();
 
     res.status(201).json({
       success: true,
-      message: 'Invoice created successfully',
-      invoice
+      message: "Invoice created successfully",
+      invoice,
     });
   } catch (error) {
-    console.error('Create invoice error:', error);
+    console.error("Create invoice error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create invoice',
-      error: error.message
+      message: "Failed to create invoice",
+      error: error.message,
     });
   }
 };
@@ -241,13 +256,15 @@ export const getAllInvoices = async (req, res) => {
       customerId,
       startDate,
       endDate,
-      sortBy = 'createdAt',
-      order = 'desc',
+      sortBy = "createdAt",
+      order = "desc",
       page = 1,
-      limit = 50
+      limit = 50,
     } = req.query;
 
     let query = {};
+
+    console.log(" All Invoice List  ");
 
     // Filter by customer
     if (customerId) {
@@ -257,9 +274,9 @@ export const getAllInvoices = async (req, res) => {
     // Search by invoice number or customer name
     if (search) {
       query.$or = [
-        { invoiceNumber: { $regex: search, $options: 'i' } },
-        { 'customerDetails.name': { $regex: search, $options: 'i' } },
-        { 'customerDetails.phone': { $regex: search, $options: 'i' } }
+        { invoiceNumber: { $regex: search, $options: "i" } },
+        { "customerDetails.name": { $regex: search, $options: "i" } },
+        { "customerDetails.phone": { $regex: search, $options: "i" } },
       ];
     }
 
@@ -270,11 +287,11 @@ export const getAllInvoices = async (req, res) => {
 
     // Filter by payment status (supports comma-separated values)
     if (paymentStatus) {
-      const statuses = paymentStatus.split(',').map(s => s.trim());
+      const statuses = paymentStatus.split(",").map((s) => s.trim());
       if (statuses.length > 1) {
-        query['payment.status'] = { $in: statuses };
+        query["payment.status"] = { $in: statuses };
       } else {
-        query['payment.status'] = paymentStatus;
+        query["payment.status"] = paymentStatus;
       }
     }
 
@@ -293,10 +310,10 @@ export const getAllInvoices = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const invoices = await Invoice.find(query)
-      .sort({ [sortBy]: order === 'desc' ? -1 : 1 })
+      .sort({ [sortBy]: order === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit))
-      .populate('customerId', 'name phone email');
+      .populate("customerId", "name phone email");
 
     const total = await Invoice.countDocuments(query);
 
@@ -306,14 +323,14 @@ export const getAllInvoices = async (req, res) => {
       total,
       page: parseInt(page),
       totalPages: Math.ceil(total / parseInt(limit)),
-      invoices
+      invoices,
     });
   } catch (error) {
-    console.error('Get invoices error:', error);
+    console.error("Get invoices error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch invoices',
-      error: error.message
+      message: "Failed to fetch invoices",
+      error: error.message,
     });
   }
 };
@@ -321,26 +338,29 @@ export const getAllInvoices = async (req, res) => {
 // Get single invoice by ID
 export const getInvoiceById = async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id)
-      .populate('customerId', 'name phone email address gstNumber');
+    const invoice = await Invoice.findById(req.params.id).populate(
+      "customerId",
+      "name phone email address gstNumber"
+    );
+    console.log("  Invoice BY Id  ");
 
     if (!invoice) {
       return res.status(404).json({
         success: false,
-        message: 'Invoice not found'
+        message: "Invoice not found",
       });
     }
 
     res.json({
       success: true,
-      invoice
+      invoice,
     });
   } catch (error) {
-    console.error('Get invoice error:', error);
+    console.error("Get invoice error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch invoice',
-      error: error.message
+      message: "Failed to fetch invoice",
+      error: error.message,
     });
   }
 };
@@ -348,26 +368,29 @@ export const getInvoiceById = async (req, res) => {
 // Get invoice by invoice number
 export const getInvoiceByNumber = async (req, res) => {
   try {
-    const invoice = await Invoice.findOne({ invoiceNumber: req.params.invoiceNumber })
-      .populate('customerId', 'name phone email address gstNumber');
+    const invoice = await Invoice.findOne({
+      invoiceNumber: req.params.invoiceNumber,
+    }).populate("customerId", "name phone email address gstNumber");
+
+    console.log(" All Invoice No  ");
 
     if (!invoice) {
       return res.status(404).json({
         success: false,
-        message: 'Invoice not found'
+        message: "Invoice not found",
       });
     }
 
     res.json({
       success: true,
-      invoice
+      invoice,
     });
   } catch (error) {
-    console.error('Get invoice error:', error);
+    console.error("Get invoice error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch invoice',
-      error: error.message
+      message: "Failed to fetch invoice",
+      error: error.message,
     });
   }
 };
@@ -375,13 +398,23 @@ export const getInvoiceByNumber = async (req, res) => {
 // Update invoice payment
 export const updateInvoicePayment = async (req, res) => {
   try {
-    const { paymentAmount, paymentMethod, paymentDate, nextDueDate, transactionId, notes, discount } = req.body;
+    const {
+      paymentAmount,
+      paymentMethod,
+      paymentDate,
+      nextDueDate,
+      transactionId,
+      notes,
+      discount,
+    } = req.body;
+
+    console.log("  Invoice Payment Collection  ");
 
     const invoice = await Invoice.findById(req.params.id);
     if (!invoice) {
       return res.status(404).json({
         success: false,
-        message: 'Invoice not found'
+        message: "Invoice not found",
       });
     }
 
@@ -393,7 +426,8 @@ export const updateInvoicePayment = async (req, res) => {
     }
 
     // Calculate actual pending amount considering discount
-    const actualPendingAmount = invoice.finalAmount - invoice.payment.totalPaid - (invoice.discount || 0);
+    const actualPendingAmount =
+      invoice.finalAmount - invoice.payment.totalPaid - (invoice.discount || 0);
 
     // Only create payment record if amount > 0
     let payment = null;
@@ -404,24 +438,27 @@ export const updateInvoicePayment = async (req, res) => {
         customerId: invoice.customerId,
         customerName: invoice.customerDetails.name,
         amount: paymentAmount,
-        paymentMethod: paymentMethod || 'CASH',
+        paymentMethod: paymentMethod || "CASH",
         paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
-        transactionId: transactionId || '',
+        transactionId: transactionId || "",
         nextDueDate: nextDueDate || null,
         notes: notes || `Payment for invoice ${invoice.invoiceNumber}`,
-        remainingAmount: actualPendingAmount - paymentAmount
+        remainingAmount: actualPendingAmount - paymentAmount,
       });
       await payment.save();
 
       // Update invoice payment details
       invoice.payment.totalPaid += paymentAmount;
-      invoice.payment.pendingAmount = invoice.finalAmount - invoice.payment.totalPaid - (invoice.discount || 0);
-      
+      invoice.payment.pendingAmount =
+        invoice.finalAmount -
+        invoice.payment.totalPaid -
+        (invoice.discount || 0);
+
       if (invoice.payment.pendingAmount <= 0) {
-        invoice.payment.status = 'PAID';
+        invoice.payment.status = "PAID";
         invoice.payment.nextDueDate = null;
       } else if (invoice.payment.totalPaid > 0) {
-        invoice.payment.status = 'PARTIAL';
+        invoice.payment.status = "PARTIAL";
         if (nextDueDate) {
           invoice.payment.nextDueDate = nextDueDate;
         }
@@ -430,9 +467,9 @@ export const updateInvoicePayment = async (req, res) => {
       // Add to payment history
       invoice.payment.paymentHistory.push({
         amount: paymentAmount,
-        paymentMethod: paymentMethod || 'CASH',
+        paymentMethod: paymentMethod || "CASH",
         paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
-        paymentId: payment._id
+        paymentId: payment._id,
       });
 
       // Update customer balance (considering discount)
@@ -440,7 +477,7 @@ export const updateInvoicePayment = async (req, res) => {
       if (customer) {
         customer.totalPaidAmount += paymentAmount;
         // When discount is given, also reduce outstanding by discount amount
-        customer.outstandingBalance -= (paymentAmount + (discount || 0));
+        customer.outstandingBalance -= paymentAmount + (discount || 0);
         await customer.save();
       }
     } else {
@@ -448,7 +485,7 @@ export const updateInvoicePayment = async (req, res) => {
       if (nextDueDate) {
         invoice.payment.nextDueDate = nextDueDate;
       }
-      
+
       // If only discount is given (no payment), update customer balance
       if (discount && discount > 0) {
         const customer = await Customer.findById(invoice.customerId);
@@ -456,11 +493,14 @@ export const updateInvoicePayment = async (req, res) => {
           customer.outstandingBalance -= discount;
           await customer.save();
         }
-        
+
         // Update invoice pending amount
-        invoice.payment.pendingAmount = invoice.finalAmount - invoice.payment.totalPaid - (invoice.discount || 0);
+        invoice.payment.pendingAmount =
+          invoice.finalAmount -
+          invoice.payment.totalPaid -
+          (invoice.discount || 0);
         if (invoice.payment.pendingAmount <= 0) {
-          invoice.payment.status = 'PAID';
+          invoice.payment.status = "PAID";
           invoice.payment.nextDueDate = null;
         }
       }
@@ -470,16 +510,16 @@ export const updateInvoicePayment = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Payment updated successfully',
+      message: "Payment updated successfully",
       invoice,
-      payment
+      payment,
     });
   } catch (error) {
-    console.error('Update payment error:', error);
+    console.error("Update payment error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update payment',
-      error: error.message
+      message: "Failed to update payment",
+      error: error.message,
     });
   }
 };
@@ -488,11 +528,11 @@ export const updateInvoicePayment = async (req, res) => {
 export const deleteInvoice = async (req, res) => {
   try {
     const invoice = await Invoice.findById(req.params.id);
-    
+
     if (!invoice) {
       return res.status(404).json({
         success: false,
-        message: 'Invoice not found'
+        message: "Invoice not found",
       });
     }
 
@@ -518,7 +558,7 @@ export const deleteInvoice = async (req, res) => {
 
         product.sales = {
           boxes: newSales.boxes,
-          pieces: newSales.pieces
+          pieces: newSales.pieces,
         };
         await product.save();
       }
@@ -542,14 +582,14 @@ export const deleteInvoice = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Invoice deleted successfully'
+      message: "Invoice deleted successfully",
     });
   } catch (error) {
-    console.error('Delete invoice error:', error);
+    console.error("Delete invoice error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete invoice',
-      error: error.message
+      message: "Failed to delete invoice",
+      error: error.message,
     });
   }
 };
@@ -565,29 +605,33 @@ export const getDashboardStats = async (req, res) => {
 
     // Today's stats
     const todayInvoices = await Invoice.countDocuments({
-      createdAt: { $gte: today }
+      createdAt: { $gte: today },
     });
     const todaySales = await Invoice.aggregate([
       { $match: { createdAt: { $gte: today } } },
-      { $group: { _id: null, total: { $sum: '$finalAmount' } } }
+      { $group: { _id: null, total: { $sum: "$finalAmount" } } },
     ]);
 
     // This month's stats
     const monthInvoices = await Invoice.countDocuments({
-      createdAt: { $gte: thisMonth }
+      createdAt: { $gte: thisMonth },
     });
     const monthSales = await Invoice.aggregate([
       { $match: { createdAt: { $gte: thisMonth } } },
-      { $group: { _id: null, total: { $sum: '$finalAmount' } } }
+      { $group: { _id: null, total: { $sum: "$finalAmount" } } },
     ]);
 
     // Pending payments
     const pendingInvoices = await Invoice.countDocuments({
-      'payment.status': { $in: ['PENDING', 'PARTIAL', 'OVERDUE'] }
+      "payment.status": { $in: ["PENDING", "PARTIAL", "OVERDUE"] },
     });
     const pendingAmount = await Invoice.aggregate([
-      { $match: { 'payment.status': { $in: ['PENDING', 'PARTIAL', 'OVERDUE'] } } },
-      { $group: { _id: null, total: { $sum: '$payment.pendingAmount' } } }
+      {
+        $match: {
+          "payment.status": { $in: ["PENDING", "PARTIAL", "OVERDUE"] },
+        },
+      },
+      { $group: { _id: null, total: { $sum: "$payment.pendingAmount" } } },
     ]);
 
     // Total customers
@@ -598,25 +642,25 @@ export const getDashboardStats = async (req, res) => {
       stats: {
         today: {
           invoices: todayInvoices,
-          sales: todaySales[0]?.total || 0
+          sales: todaySales[0]?.total || 0,
         },
         thisMonth: {
           invoices: monthInvoices,
-          sales: monthSales[0]?.total || 0
+          sales: monthSales[0]?.total || 0,
         },
         pending: {
           invoices: pendingInvoices,
-          amount: pendingAmount[0]?.total || 0
+          amount: pendingAmount[0]?.total || 0,
         },
-        totalCustomers
-      }
+        totalCustomers,
+      },
     });
   } catch (error) {
-    console.error('Get dashboard stats error:', error);
+    console.error("Get dashboard stats error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch dashboard statistics',
-      error: error.message
+      message: "Failed to fetch dashboard statistics",
+      error: error.message,
     });
   }
 };
@@ -637,7 +681,7 @@ export const updateInvoice = async (req, res) => {
       roundOff,
       finalAmount,
       invoiceNotes,
-      customerId
+      customerId,
     } = req.body;
 
     // Find current invoice to get totalPaid and original items
@@ -645,7 +689,7 @@ export const updateInvoice = async (req, res) => {
     if (!currentInvoice) {
       return res.status(404).json({
         success: false,
-        message: 'Invoice not found'
+        message: "Invoice not found",
       });
     }
 
@@ -660,15 +704,15 @@ export const updateInvoice = async (req, res) => {
       const product = await Product.findById(oldItem.productId);
       if (product) {
         // Remove the old quantity from sales
-        product.sales.boxes -= (oldItem.quantity?.boxes || 0);
-        product.sales.pieces -= (oldItem.quantity?.pieces || 0);
+        product.sales.boxes -= oldItem.quantity?.boxes || 0;
+        product.sales.pieces -= oldItem.quantity?.pieces || 0;
         await product.save();
       }
     }
 
     // Step 2: Delete all old stock history entries for this invoice
     await StockHistory.deleteMany({
-      invoiceId: req.params.id
+      invoiceId: req.params.id,
     });
 
     // Step 3: Add new sales quantities and create fresh history entries
@@ -685,30 +729,45 @@ export const updateInvoice = async (req, res) => {
 
         // Calculate current available stock
         const piecesPerBox = product.piecesPerBox || 1;
-        const stockPieces = (product.stock?.boxes || 0) * piecesPerBox + (product.stock?.pieces || 0);
-        const salesPieces = (product.sales?.boxes || 0) * piecesPerBox + (product.sales?.pieces || 0);
-        const damagePieces = (product.damage?.boxes || 0) * piecesPerBox + (product.damage?.pieces || 0);
-        const returnsPieces = (product.returns?.boxes || 0) * piecesPerBox + (product.returns?.pieces || 0);
-        const availablePieces = Math.max(0, stockPieces - salesPieces - damagePieces + returnsPieces);
-        
+        const stockPieces =
+          (product.stock?.boxes || 0) * piecesPerBox +
+          (product.stock?.pieces || 0);
+        const salesPieces =
+          (product.sales?.boxes || 0) * piecesPerBox +
+          (product.sales?.pieces || 0);
+        const damagePieces =
+          (product.damage?.boxes || 0) * piecesPerBox +
+          (product.damage?.pieces || 0);
+        const returnsPieces =
+          (product.returns?.boxes || 0) * piecesPerBox +
+          (product.returns?.pieces || 0);
+        const availablePieces = Math.max(
+          0,
+          stockPieces - salesPieces - damagePieces + returnsPieces
+        );
+
         const availableBoxes = Math.floor(availablePieces / piecesPerBox);
         const availablePcs = availablePieces % piecesPerBox;
 
         // Create a SINGLE history entry with the final quantities
         await StockHistory.create({
           productId: newItem.productId,
-          action: 'SALE',
+          action: "SALE",
           change: {
             boxes: newBoxes,
-            pieces: newPieces
+            pieces: newPieces,
           },
           quantity: {
             boxes: availableBoxes,
-            pieces: availablePcs
+            pieces: availablePcs,
           },
-          notes: `Sale - Invoice: ${currentInvoice.invoiceNumber}${currentInvoice.invoiceNumber !== req.body.invoiceNumber ? ' (Edited)' : ''}`,
+          notes: `Sale - Invoice: ${currentInvoice.invoiceNumber}${
+            currentInvoice.invoiceNumber !== req.body.invoiceNumber
+              ? " (Edited)"
+              : ""
+          }`,
           invoiceId: req.params.id,
-          customerId
+          customerId,
         });
       }
     }
@@ -733,37 +792,40 @@ export const updateInvoice = async (req, res) => {
         totalTax: totalTax || 0,
         // Recalculate totalBeforeDiscount and invoiceValue
         totalBeforeDiscount: (subtotal || 0) + (totalTax || 0),
-        invoiceValue: (invoiceType === 'GST') ? ((subtotal || 0) + (totalTax || 0)) : (subtotal || 0),
+        invoiceValue:
+          invoiceType === "GST"
+            ? (subtotal || 0) + (totalTax || 0)
+            : subtotal || 0,
         totalAmount,
         roundOffAmount: roundOff,
         finalAmount,
         invoiceNotes,
         customerId,
-        'payment.pendingAmount': pendingAmount,
-        'payment.status': paymentStatus,
-        updatedAt: new Date()
+        "payment.pendingAmount": pendingAmount,
+        "payment.status": paymentStatus,
+        updatedAt: new Date(),
       },
       { new: true }
-    ).populate('customerId');
+    ).populate("customerId");
 
     res.json({
       success: true,
-      message: 'Invoice updated successfully',
-      invoice
+      message: "Invoice updated successfully",
+      invoice,
     });
   } catch (error) {
-    console.error('Update invoice error:', error);
+    console.error("Update invoice error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update invoice',
-      error: error.message
+      message: "Failed to update invoice",
+      error: error.message,
     });
   }
 };
 
 // Helper function to calculate invoiceValue based on type
 const calculateInvoiceValue = (subtotal, totalTax, invoiceType) => {
-  if (invoiceType === 'GST') {
+  if (invoiceType === "GST") {
     return subtotal + totalTax;
   } else {
     return subtotal;
@@ -776,40 +838,38 @@ export const migrateInvoices = async (req, res) => {
     const invoices = await Invoice.find({
       $or: [
         { totalBeforeDiscount: { $exists: false } },
-        { invoiceValue: { $exists: false } }
-      ]
+        { invoiceValue: { $exists: false } },
+      ],
     });
 
     let updated = 0;
     for (const invoice of invoices) {
-      const totalBeforeDiscount = (invoice.subtotal || 0) + (invoice.totalTax || 0);
+      const totalBeforeDiscount =
+        (invoice.subtotal || 0) + (invoice.totalTax || 0);
       const invoiceValue = calculateInvoiceValue(
         invoice.subtotal || 0,
         invoice.totalTax || 0,
         invoice.invoiceType
       );
 
-      await Invoice.findByIdAndUpdate(
-        invoice._id,
-        {
-          totalBeforeDiscount,
-          invoiceValue
-        }
-      );
+      await Invoice.findByIdAndUpdate(invoice._id, {
+        totalBeforeDiscount,
+        invoiceValue,
+      });
       updated++;
     }
 
     res.json({
       success: true,
       message: `Migration completed. Updated ${updated} invoices.`,
-      updatedCount: updated
+      updatedCount: updated,
     });
   } catch (error) {
-    console.error('Migration error:', error);
+    console.error("Migration error:", error);
     res.status(500).json({
       success: false,
-      message: 'Migration failed',
-      error: error.message
+      message: "Migration failed",
+      error: error.message,
     });
   }
 };

@@ -1,6 +1,6 @@
-import Customer from '../models/Customer.js';
-import Invoice from '../models/Invoice.js';
-import Payment from '../models/Payment.js';
+import Customer from "../models/Customer.js";
+import Invoice from "../models/Invoice.js";
+import Payment from "../models/Payment.js";
 
 /**
  * Customer Controller
@@ -10,32 +10,36 @@ import Payment from '../models/Payment.js';
 // Get all customers
 export const getAllCustomers = async (req, res) => {
   try {
-    const { search, sortBy = 'createdAt', order = 'desc' } = req.query;
-    
+    const { search, sortBy = "createdAt", order = "desc" } = req.query;
+    console.log("All customer request");
     let query = {};
     if (search) {
       query = {
         $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { phone: { $regex: search, $options: 'i' } },
-          { address: { $regex: search, $options: 'i' } }
-        ]
+          { name: { $regex: search, $options: "i" } },
+          { phone: { $regex: search, $options: "i" } },
+          { address: { $regex: search, $options: "i" } },
+        ],
       };
     }
 
-    const customers = await Customer.find(query)
-      .sort({ [sortBy]: order === 'desc' ? -1 : 1 });
+    const customers = await Customer.find(query).sort({
+      [sortBy]: order === "desc" ? -1 : 1,
+    });
 
     // Calculate total discount for each customer from their invoices
-    const Invoice = (await import('../models/Invoice.js')).default;
+    const Invoice = (await import("../models/Invoice.js")).default;
     const customersWithDiscount = await Promise.all(
       customers.map(async (customer) => {
         const invoices = await Invoice.find({ customerId: customer._id });
-        const totalDiscount = invoices.reduce((sum, inv) => sum + (inv.discount || 0), 0);
-        
+        const totalDiscount = invoices.reduce(
+          (sum, inv) => sum + (inv.discount || 0),
+          0
+        );
+
         return {
           ...customer.toObject(),
-          totalDiscountGiven: totalDiscount
+          totalDiscountGiven: totalDiscount,
         };
       })
     );
@@ -43,14 +47,14 @@ export const getAllCustomers = async (req, res) => {
     res.json({
       success: true,
       count: customersWithDiscount.length,
-      customers: customersWithDiscount
+      customers: customersWithDiscount,
     });
   } catch (error) {
-    console.error('Get customers error:', error);
+    console.error("Get customers error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch customers',
-      error: error.message
+      message: "Failed to fetch customers",
+      error: error.message,
     });
   }
 };
@@ -59,19 +63,20 @@ export const getAllCustomers = async (req, res) => {
 export const getCustomerById = async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
-    
+    console.log(" Customer By ID");
+
     if (!customer) {
       return res.status(404).json({
         success: false,
-        message: 'Customer not found'
+        message: "Customer not found",
       });
     }
 
     // Calculate available credit from returns
-    const Return = (await import('../models/Return.js')).default;
-    const returns = await Return.find({ 
+    const Return = (await import("../models/Return.js")).default;
+    const returns = await Return.find({
       customerId: req.params.id,
-      status: { $in: ['APPROVED', 'COMPLETED'] }
+      status: { $in: ["APPROVED", "COMPLETED"] },
     });
 
     const availableCredit = returns.reduce((total, returnDoc) => {
@@ -82,15 +87,15 @@ export const getCustomerById = async (req, res) => {
       success: true,
       customer: {
         ...customer.toObject(),
-        availableCredit
-      }
+        availableCredit,
+      },
     });
   } catch (error) {
-    console.error('Get customer error:', error);
+    console.error("Get customer error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch customer',
-      error: error.message
+      message: "Failed to fetch customer",
+      error: error.message,
     });
   }
 };
@@ -99,12 +104,13 @@ export const getCustomerById = async (req, res) => {
 export const createCustomer = async (req, res) => {
   try {
     const { name, phone, email, address, gstNumber } = req.body;
+    console.log("Customer Creation ");
 
     // Validation - only name is required
     if (!name) {
       return res.status(400).json({
         success: false,
-        message: 'Name is required'
+        message: "Name is required",
       });
     }
 
@@ -114,32 +120,32 @@ export const createCustomer = async (req, res) => {
       if (existingCustomer) {
         return res.status(400).json({
           success: false,
-          message: 'Customer with this phone number already exists'
+          message: "Customer with this phone number already exists",
         });
       }
     }
 
     const customer = new Customer({
       name,
-      phone: phone || '',
+      phone: phone || "",
       email,
       address,
-      gstNumber
+      gstNumber,
     });
 
     await customer.save();
 
     res.status(201).json({
       success: true,
-      message: 'Customer created successfully',
-      customer
+      message: "Customer created successfully",
+      customer,
     });
   } catch (error) {
-    console.error('Create customer error:', error);
+    console.error("Create customer error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create customer',
-      error: error.message
+      message: "Failed to create customer",
+      error: error.message,
     });
   }
 };
@@ -148,12 +154,13 @@ export const createCustomer = async (req, res) => {
 export const updateCustomer = async (req, res) => {
   try {
     const { name, phone, email, address, gstNumber } = req.body;
+    console.log(" Customer Update ");
 
     const customer = await Customer.findById(req.params.id);
     if (!customer) {
       return res.status(404).json({
         success: false,
-        message: 'Customer not found'
+        message: "Customer not found",
       });
     }
 
@@ -163,7 +170,7 @@ export const updateCustomer = async (req, res) => {
       if (existingCustomer) {
         return res.status(400).json({
           success: false,
-          message: 'Customer with this phone number already exists'
+          message: "Customer with this phone number already exists",
         });
       }
     }
@@ -179,15 +186,15 @@ export const updateCustomer = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Customer updated successfully',
-      customer
+      message: "Customer updated successfully",
+      customer,
     });
   } catch (error) {
-    console.error('Update customer error:', error);
+    console.error("Update customer error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update customer',
-      error: error.message
+      message: "Failed to update customer",
+      error: error.message,
     });
   }
 };
@@ -196,21 +203,24 @@ export const updateCustomer = async (req, res) => {
 export const deleteCustomer = async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
-    
+    console.log(" Customer Delete ");
+
     if (!customer) {
       return res.status(404).json({
         success: false,
-        message: 'Customer not found'
+        message: "Customer not found",
       });
     }
 
     // Check if customer has any invoices
-    const invoiceCount = await Invoice.countDocuments({ customerId: customer._id });
-    
+    const invoiceCount = await Invoice.countDocuments({
+      customerId: customer._id,
+    });
+
     if (invoiceCount > 0) {
       return res.status(400).json({
         success: false,
-        message: 'Cannot delete customer with existing invoices'
+        message: "Cannot delete customer with existing invoices",
       });
     }
 
@@ -218,14 +228,14 @@ export const deleteCustomer = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Customer deleted successfully'
+      message: "Customer deleted successfully",
     });
   } catch (error) {
-    console.error('Delete customer error:', error);
+    console.error("Delete customer error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete customer',
-      error: error.message
+      message: "Failed to delete customer",
+      error: error.message,
     });
   }
 };
@@ -235,29 +245,32 @@ export const getCustomerStats = async (req, res) => {
   try {
     const customerId = req.params.id;
     const customer = await Customer.findById(customerId);
-    
+    console.log(" Customer Stats ");
+
     if (!customer) {
       return res.status(404).json({
         success: false,
-        message: 'Customer not found'
+        message: "Customer not found",
       });
     }
 
-    const Invoice = require('../models/Invoice');
-    const Payment = require('../models/Payment');
+    const Invoice = require("../models/Invoice");
+    const Payment = require("../models/Payment");
 
     // Get all invoices
-    const invoices = await Invoice.find({ customerId })
-      .sort({ createdAt: -1 });
+    const invoices = await Invoice.find({ customerId }).sort({ createdAt: -1 });
 
     // Get all payments
-    const payments = await Payment.find({ customerId })
-      .sort({ createdAt: -1 });
+    const payments = await Payment.find({ customerId }).sort({ createdAt: -1 });
 
     // Calculate stats
     const totalInvoices = invoices.length;
-    const paidInvoices = invoices.filter(inv => inv.payment.status === 'PAID').length;
-    const pendingInvoices = invoices.filter(inv => ['PENDING', 'PARTIAL', 'OVERDUE'].includes(inv.payment.status)).length;
+    const paidInvoices = invoices.filter(
+      (inv) => inv.payment.status === "PAID"
+    ).length;
+    const pendingInvoices = invoices.filter((inv) =>
+      ["PENDING", "PARTIAL", "OVERDUE"].includes(inv.payment.status)
+    ).length;
 
     res.json({
       success: true,
@@ -269,17 +282,17 @@ export const getCustomerStats = async (req, res) => {
         totalPurchaseAmount: customer.totalPurchaseAmount,
         totalPaidAmount: customer.totalPaidAmount,
         outstandingBalance: customer.outstandingBalance,
-        lastPurchaseDate: customer.lastPurchaseDate
+        lastPurchaseDate: customer.lastPurchaseDate,
       },
       recentInvoices: invoices.slice(0, 5),
-      recentPayments: payments.slice(0, 5)
+      recentPayments: payments.slice(0, 5),
     });
   } catch (error) {
-    console.error('Get customer stats error:', error);
+    console.error("Get customer stats error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch customer statistics',
-      error: error.message
+      message: "Failed to fetch customer statistics",
+      error: error.message,
     });
   }
 };
